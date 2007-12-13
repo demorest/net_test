@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <linux/in.h>
+#include <netinet/in.h>
+#include <netdb.h>
 #include <signal.h>
 #include <sys/times.h>
 #include <sys/time.h>
@@ -67,12 +69,22 @@ int main(int argc, char *argv[]) {
     char *buf = (char *)malloc(sizeof(char)*packet_size);
     *((unsigned int *)buf) = 0;
 
+    /* Resolve hostname */
+    struct hostent *hh;
+    hh = gethostbyname(argv[optind]);
+    if (hh==NULL) {
+        herror("gethostbyname");
+        exit(1);
+    }
+    //printf("ipaddr=%s\n", inet_ntoa(*(struct in_addr *)hh->h_addr));
+
     /* Set up recvr address */
     struct sockaddr_in ip_addr;
     ip_addr.sin_family = AF_INET;
     ip_addr.sin_port = htons(port_num);
-    rv = inet_aton(argv[optind], &ip_addr.sin_addr);
-    if (rv==0) { fprintf(stderr, "Bad IP address.\n"); exit(1); }
+    memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
+    //rv = inet_aton(argv[optind], &ip_addr.sin_addr);
+    //if (rv==0) { fprintf(stderr, "Bad IP address.\n"); exit(1); }
     int slen = sizeof(ip_addr);
 
     /* clock stuff */

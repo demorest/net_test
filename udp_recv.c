@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -69,6 +71,21 @@ int main(int argc, char *argv[]) {
     int packet_size = PACKET_SIZE;
     char *buf = (char *)malloc(sizeof(char)*packet_size);
 
+    /* Resolve hostname */
+    struct hostent *hh;
+    hh = gethostbyname(argv[optind]);
+    if (hh==NULL) {
+        herror("gethostbyname");
+        exit(1);
+    }
+    //printf("ipaddr=%s\n", inet_ntoa(*(struct in_addr *)hh->h_addr));
+
+    /* Set up address to recieve from */
+    struct sockaddr_in ip_addr;
+    ip_addr.sin_family = AF_INET;
+    ip_addr.sin_port = htons(port_num);
+    memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
+
     /* Bind to local address */
     struct sockaddr_in local_ip;
     local_ip.sin_family = AF_INET;
@@ -80,14 +97,6 @@ int main(int argc, char *argv[]) {
         perror("bind");
         exit(1);
     }
-
-    /* Set up recvr address */
-    struct sockaddr_in ip_addr;
-    ip_addr.sin_family = AF_INET;
-    ip_addr.sin_port = htons(port_num);
-    rv = inet_aton(argv[optind], &ip_addr.sin_addr);
-    if (rv==0) { fprintf(stderr, "Bad IP address.\n"); exit(1); }
-    slen = sizeof(ip_addr);
 
     /* Make recvs non-blocking, set up for polling */
     fcntl(sock, F_SETFL, O_NONBLOCK);
@@ -108,6 +117,7 @@ int main(int argc, char *argv[]) {
     unsigned int packet_num=0;
     signal(SIGINT, cc);
     int first=1, timeout=0;
+    slen = sizeof(ip_addr);
     while (run) {
         rv = poll(&pfd, 1, 1000);
         if (rv > 0) {
