@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
                     time0 = times(&t0); 
                     packet_num = *((unsigned int *)buf);
                     sent_count = packet_num;
-                    printf("Receiving data.\n");
+                    fprintf(stderr, "Receiving data.\n");
                     first=0; 
                 } else {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
