@@ -18,7 +18,8 @@ void usage() {
             "Usage: udp_send (options) rcvr_hostname\n"
             "Options:\n"
             "  -p nn, --port=nn    Port number (%d)\n"
-            , PORT_NUM);
+            "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
+            , PORT_NUM, PACKET_SIZE);
 }
 
 /* Use Ctrl-C for stop */
@@ -34,14 +35,19 @@ int main(int argc, char *argv[]) {
     static struct option long_opts[] = {
         {"help",   0, NULL, 'h'},
         {"port",   1, NULL, 'p'},
+        {"packet-size",   1, NULL, 's'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
+    int packet_size = PACKET_SIZE;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
+                break;
+            case 's':
+                packet_size = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -65,7 +71,6 @@ int main(int argc, char *argv[]) {
     }
 
     /* Init buffer, use first 4 bytes as packet count */
-    int packet_size = PACKET_SIZE;
     char *buf = (char *)malloc(sizeof(char)*packet_size);
     *((unsigned int *)buf) = 0;
 
