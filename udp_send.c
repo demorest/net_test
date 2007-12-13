@@ -12,14 +12,16 @@
 #include <getopt.h>
 
 #include "udp_params.h"
+#define TOTAL_DATA 10.0
 
 void usage() {
     fprintf(stderr,
             "Usage: udp_send (options) rcvr_hostname\n"
             "Options:\n"
-            "  -p nn, --port=nn    Port number (%d)\n"
+            "  -p nn, --port=nn         Port number (%d)\n"
             "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
-            , PORT_NUM, PACKET_SIZE);
+            "  -d nn, --total-data=nn   Total amount to send, GB (%.1f)\n"
+            , PORT_NUM, PACKET_SIZE, TOTAL_DATA);
 }
 
 /* Use Ctrl-C for stop */
@@ -36,18 +38,23 @@ int main(int argc, char *argv[]) {
         {"help",   0, NULL, 'h'},
         {"port",   1, NULL, 'p'},
         {"packet-size",   1, NULL, 's'},
+        {"total-data",    1, NULL, 'd'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
+    float total_data = TOTAL_DATA;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:d:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
                 break;
             case 's':
                 packet_size = atoi(optarg);
+                break;
+            case 'd':
+                total_data = atof(optarg);
                 break;
             case 'h':
             default:
@@ -100,9 +107,10 @@ int main(int argc, char *argv[]) {
     /* Send packets */
     int loop_count=10;
     double byte_count=0;
+    total_data *= 1024.0*1024.0*1024.0; /* change to bytes */
     signal(SIGINT, cc);
     time0 = times(&t0);
-    while (run) {
+    while (run && (byte_count<total_data)) {
         (*((unsigned int *)buf))++;
         rv = sendto(sock, buf, (size_t)packet_size, 0, 
                 (struct sockaddr *)&ip_addr, slen);
