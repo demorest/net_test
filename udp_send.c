@@ -70,8 +70,8 @@ int main(int argc, char *argv[]) {
     /* Set up recvr address */
     struct sockaddr_in ip_addr;
     ip_addr.sin_family = AF_INET;
-    ip_addr.sin_port = htons(5000);
-    rv = inet_aton(argv[1], &ip_addr.sin_addr);
+    ip_addr.sin_port = htons(port_num);
+    rv = inet_aton(argv[optind], &ip_addr.sin_addr);
     if (rv==0) { fprintf(stderr, "Bad IP address.\n"); exit(1); }
     int slen = sizeof(ip_addr);
 
