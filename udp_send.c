@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <sys/times.h>
 #include <sys/time.h>
+#include <time.h>
 #include <unistd.h>
 #include <getopt.h>
 
@@ -22,6 +23,7 @@ void usage() {
             "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
             "  -d nn, --total-data=nn   Total amount to send, GB (%.1f)\n"
             "  -q, --quiet              More compact output\n"
+            "  -w nn, --wait=nn         Wait 1000*nn cycles (0)\n"
             , PORT_NUM, PACKET_SIZE, TOTAL_DATA);
 }
 
@@ -41,14 +43,16 @@ int main(int argc, char *argv[]) {
         {"packet-size",   1, NULL, 's'},
         {"total-data",    1, NULL, 'd'},
         {"quiet",  0, NULL, 'q'},
+        {"wait",   1, NULL, 'w'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
     float total_data = TOTAL_DATA;
+    int wait_cyc=0;
     int quiet=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:d:q",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -61,6 +65,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'q':
                 quiet=1;
+                break;
+            case 'w':
+                wait_cyc = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -125,6 +132,7 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         byte_count += (double)packet_size;
+        for (i=0; i<1000*wait_cyc; i++) { __asm__("nop;nop;nop"); }
     }
     time1 = times(&t1);
 
@@ -135,9 +143,9 @@ int main(int argc, char *argv[]) {
 
 
     if (quiet) {
-        printf("%5d %8.1f %8.3f %5.3f S:%s\n",
+        printf("%5d %8.1f %8.3f %5.3f %5d S:%s\n",
                 packet_size, byte_count/(1024.0*1024.0), 
-                rate/(1024.0*1024.0), load, argv[optind]);
+                rate/(1024.0*1024.0), load, wait_cyc, argv[optind]);
     } else {
         printf("Sending to %s\n", argv[optind]);
         printf("Packet size %d B\n", packet_size);

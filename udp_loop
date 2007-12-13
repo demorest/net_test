@@ -2,10 +2,10 @@
 
 # Loop over a range of params for udp test
 
-$sender = "west";
+$sender = "cicada2";
 $recvr = "east";
 $ssh = "ssh -x";
-$path = "net_test";
+$path = "";
 
 # Open output file
 open (S_LOG, ">send.dat") or die "Error opening send.dat\n";
@@ -21,9 +21,13 @@ print R_LOG "# packet_size(B) total_size(MB) rate(MB/s) drop_frac load recvr\n";
 $suff = "_10";
 
 # Packet size loop
-for ($ps=1024; $ps<15000; $ps+=256) {
-    $send_cmd = "$path/udp_send -q -d 10.0 -s $ps $recvr$suff";
-    $recv_cmd = "$path/udp_recv -q -s $ps $sender$suff";
+#for ($ps=1024; $ps<15000; $ps+=256) {
+# wait loop
+$wt = 0;
+while ($wt<1000) {
+    $ps = 8192;
+    $send_cmd = "udp_send -q -d 10.0 -w $wt -s $ps $recvr$suff";
+    $recv_cmd = "udp_recv -q -s $ps $sender$suff";
     print "$send_cmd\n";
     print "$recv_cmd\n";
     open (RR, "ssh $recvr '$recv_cmd'|") or die "Error calling $recv_cmd\n";
@@ -33,6 +37,12 @@ for ($ps=1024; $ps<15000; $ps+=256) {
     while (<RR>) { chomp; $recv_output=$_; }  close RR;
     print S_LOG "$send_output\n";
     print R_LOG "$recv_output\n";
+    # Variable wait increment
+    if ($wt>100) { $wt += 100; }
+    elsif ($wt>50) { $wt += 10; }
+    elsif ($wt>20) { $wt += 5; }
+    elsif ($wt>10) { $wt += 2; }
+    else { $wt += 1; }
 }
 
 close S_LOG;
