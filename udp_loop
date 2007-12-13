@@ -2,10 +2,10 @@
 
 # Loop over a range of params for udp test
 
-$sender = "localhost";
-$recvr = "localhost";
+$sender = "west";
+$recvr = "east";
 $ssh = "ssh -x";
-$path = "work/net_test";
+$path = "net_test";
 
 # Open output file
 open (S_LOG, ">send.dat") or die "Error opening send.dat\n";
@@ -17,10 +17,13 @@ print S_LOG "# packet_size(B) total_size(MB) rate(MB/s) load recvr\n";
 print R_LOG "# Receiver: $recvr\n";
 print R_LOG "# packet_size(B) total_size(MB) rate(MB/s) drop_frac load recvr\n";
 
+# for 10gig suffix
+$suff = "_10";
+
 # Packet size loop
-for ($ps=1024; $ps<15000; $ps+=1024) {
-    $send_cmd = "$path/udp_send -q -d 1.0 -s $ps $recvr";
-    $recv_cmd = "$path/udp_recv -q -s $ps $sender";
+for ($ps=1024; $ps<15000; $ps+=256) {
+    $send_cmd = "$path/udp_send -q -d 10.0 -s $ps $recvr$suff";
+    $recv_cmd = "$path/udp_recv -q -s $ps $sender$suff";
     print "$send_cmd\n";
     print "$recv_cmd\n";
     open (RR, "ssh $recvr '$recv_cmd'|") or die "Error calling $recv_cmd\n";
