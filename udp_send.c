@@ -21,6 +21,7 @@ void usage() {
             "  -p nn, --port=nn         Port number (%d)\n"
             "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
             "  -d nn, --total-data=nn   Total amount to send, GB (%.1f)\n"
+            "  -q, --quiet              More compact output\n"
             , PORT_NUM, PACKET_SIZE, TOTAL_DATA);
 }
 
@@ -39,13 +40,15 @@ int main(int argc, char *argv[]) {
         {"port",   1, NULL, 'p'},
         {"packet-size",   1, NULL, 's'},
         {"total-data",    1, NULL, 'd'},
+        {"quiet",  0, NULL, 'q'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
     float total_data = TOTAL_DATA;
+    int quiet=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:d:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:d:q",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -55,6 +58,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'd':
                 total_data = atof(optarg);
+                break;
+            case 'q':
+                quiet=1;
                 break;
             case 'h':
             default:
@@ -128,9 +134,16 @@ int main(int argc, char *argv[]) {
         (double)(time1-time0);
 
 
-    printf("Sent %.1f MB\n", byte_count/(1024.0*1024.0)); 
-    printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
-    printf("Avg load %.3f\n", load);
-
+    if (quiet) {
+        printf("%5d %8.1f %8.3f %5.3f S:%s\n",
+                packet_size, byte_count/(1024.0*1024.0), 
+                rate/(1024.0*1024.0), load, argv[optind]);
+    } else {
+        printf("Sending to %s\n", argv[optind]);
+        printf("Packet size %d B\n", packet_size);
+        printf("Sent %.1f MB\n", byte_count/(1024.0*1024.0)); 
+        printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
+        printf("Avg load %.3f\n", load);
+    }
 
 }

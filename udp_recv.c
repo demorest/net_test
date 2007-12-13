@@ -22,6 +22,7 @@ void usage() {
             "Options:\n"
             "  -p nn, --port=nn         Port number (%d)\n"
             "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
+            "  -q, --quiet              More compact output\n"
             , PORT_NUM, PACKET_SIZE);
 }
 
@@ -39,18 +40,23 @@ int main(int argc, char *argv[]) {
         {"help",   0, NULL, 'h'},
         {"port",   1, NULL, 'p'},
         {"packet-size",   1, NULL, 's'},
+        {"quiet",  0, NULL, 'q'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
+    int quiet=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:q",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
                 break;
             case 's':
                 packet_size = atoi(optarg);
+                break;
+            case 'q':
+                quiet=1;
                 break;
             case 'h':
             default:
@@ -165,10 +171,19 @@ int main(int argc, char *argv[]) {
 
     drop_count = sent_count - packet_count;
 
-    printf("Got %.1f MB\n", byte_count/(1024.0*1024.0)); 
-    printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
-    printf("Dropped %d packets\n", drop_count);
-    printf("Drop rate %.3e\n", (double)drop_count/(double)sent_count);
-    printf("Avg load %.3f\n", load);
+    if (quiet) {
+        printf("%5d %8.1f %8.3f %.3e %5.3f R:%s\n",
+                packet_size, byte_count/(1024.0*1024.0), 
+                rate/(1024.0*1024.0), (double)drop_count/(double)sent_count,
+                load, argv[optind]);
+    } else {
+        printf("Receiving from %s\n", argv[optind]);
+        printf("Packet size %d B\n", packet_size);
+        printf("Got %.1f MB\n", byte_count/(1024.0*1024.0)); 
+        printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
+        printf("Dropped %d packets\n", drop_count);
+        printf("Drop rate %.3e\n", (double)drop_count/(double)sent_count);
+        printf("Avg load %.3f\n", load);
+    }
 
 }
