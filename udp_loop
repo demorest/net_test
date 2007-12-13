@@ -1,0 +1,36 @@
+#! /usr/bin/perl
+
+# Loop over a range of params for udp test
+
+$sender = "localhost";
+$recvr = "localhost";
+$ssh = "ssh -x";
+$path = "work/net_test";
+
+# Open output file
+open (S_LOG, ">send.dat") or die "Error opening send.dat\n";
+open (R_LOG, ">recv.dat") or die "Error opening recv.dat\n";
+
+# Some header lines
+print S_LOG "# Sender: $sender\n";
+print S_LOG "# packet_size(B) total_size(MB) rate(MB/s) load recvr\n";
+print R_LOG "# Receiver: $recvr\n";
+print R_LOG "# packet_size(B) total_size(MB) rate(MB/s) drop_frac load recvr\n";
+
+# Packet size loop
+for ($ps=1024; $ps<15000; $ps+=1024) {
+    $send_cmd = "$path/udp_send -q -d 1.0 -s $ps $recvr";
+    $recv_cmd = "$path/udp_recv -q -s $ps $sender";
+    print "$send_cmd\n";
+    print "$recv_cmd\n";
+    open (RR, "ssh $recvr '$recv_cmd'|") or die "Error calling $recv_cmd\n";
+    sleep(2); # Wait for udp_recv to start up
+    open (SS, "ssh $sender '$send_cmd'|") or die "Error calling $send_cmd\n";
+    while (<SS>) { chomp; $send_output=$_; }  close SS;
+    while (<RR>) { chomp; $recv_output=$_; }  close RR;
+    print S_LOG "$send_output\n";
+    print R_LOG "$recv_output\n";
+}
+
+close S_LOG;
+close R_LOG;

@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -10,8 +12,19 @@
 #include <sys/times.h>
 #include <sys/time.h>
 #include <poll.h>
+#include <getopt.h>
 
 #include "udp_params.h"
+
+void usage() {
+    fprintf(stderr,
+            "Usage: udp_recv (options) sender_hostname\n"
+            "Options:\n"
+            "  -p nn, --port=nn         Port number (%d)\n"
+            "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
+            "  -q, --quiet              More compact output\n"
+            , PORT_NUM, PACKET_SIZE);
+}
 
 /* Use Ctrl-C for stop */
 int run=1;
@@ -22,9 +35,40 @@ int main(int argc, char *argv[]) {
     int i;
     int rv;
 
+    /* Cmd line */
+    static struct option long_opts[] = {
+        {"help",   0, NULL, 'h'},
+        {"port",   1, NULL, 'p'},
+        {"packet-size",   1, NULL, 's'},
+        {"quiet",  0, NULL, 'q'},
+        {0,0,0,0}
+    };
+    int port_num = PORT_NUM;
+    int packet_size = PACKET_SIZE;
+    int quiet=0;
+    int opt, opti;
+    while ((opt=getopt_long(argc,argv,"hp:s:q",long_opts,&opti))!=-1) {
+        switch (opt) {
+            case 'p':
+                port_num = atoi(optarg);
+                break;
+            case 's':
+                packet_size = atoi(optarg);
+                break;
+            case 'q':
+                quiet=1;
+                break;
+            case 'h':
+            default:
+                usage();
+                exit(0);
+                break;
+        }
+    }
+
     /* check args */
-    if (argc<2) {
-        fprintf(stderr, "Usage: udp_recv ip_address\n");
+    if (optind==argc) {
+        usage();
         exit(1);
     }
 
@@ -36,13 +80,27 @@ int main(int argc, char *argv[]) {
     }
 
     /* Init buffer, use first 4 bytes as packet count */
-    int packet_size = PACKET_SIZE;
     char *buf = (char *)malloc(sizeof(char)*packet_size);
+
+    /* Resolve hostname */
+    struct hostent *hh;
+    hh = gethostbyname(argv[optind]);
+    if (hh==NULL) {
+        herror("gethostbyname");
+        exit(1);
+    }
+    //printf("ipaddr=%s\n", inet_ntoa(*(struct in_addr *)hh->h_addr));
+
+    /* Set up address to recieve from */
+    struct sockaddr_in ip_addr;
+    ip_addr.sin_family = AF_INET;
+    ip_addr.sin_port = htons(port_num);
+    memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
 
     /* Bind to local address */
     struct sockaddr_in local_ip;
     local_ip.sin_family = AF_INET;
-    local_ip.sin_port = htons(5000);
+    local_ip.sin_port = htons(port_num);
     local_ip.sin_addr.s_addr = INADDR_ANY;
     int slen=sizeof(local_ip);
     rv = bind(sock, (struct sockaddr *)&local_ip, slen);
@@ -50,14 +108,6 @@ int main(int argc, char *argv[]) {
         perror("bind");
         exit(1);
     }
-
-    /* Set up recvr address */
-    struct sockaddr_in ip_addr;
-    ip_addr.sin_family = AF_INET;
-    ip_addr.sin_port = htons(5000);
-    rv = inet_aton(argv[1], &ip_addr.sin_addr);
-    if (rv==0) { fprintf(stderr, "Bad IP address.\n"); exit(1); }
-    slen = sizeof(ip_addr);
 
     /* Make recvs non-blocking, set up for polling */
     fcntl(sock, F_SETFL, O_NONBLOCK);
@@ -78,6 +128,7 @@ int main(int argc, char *argv[]) {
     unsigned int packet_num=0;
     signal(SIGINT, cc);
     int first=1, timeout=0;
+    slen = sizeof(ip_addr);
     while (run) {
         rv = poll(&pfd, 1, 1000);
         if (rv > 0) {
@@ -93,7 +144,7 @@ int main(int argc, char *argv[]) {
                     time0 = times(&t0); 
                     packet_num = *((unsigned int *)buf);
                     sent_count = packet_num;
-                    printf("Receiving data.\n");
+                    fprintf(stderr, "Receiving data.\n");
                     first=0; 
                 } else {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
@@ -120,10 +171,19 @@ int main(int argc, char *argv[]) {
 
     drop_count = sent_count - packet_count;
 
-    printf("Got %.1f MB\n", byte_count/(1024.0*1024.0)); 
-    printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
-    printf("Dropped %d packets\n", drop_count);
-    printf("Drop rate %.3e\n", (double)drop_count/(double)sent_count);
-    printf("Avg load %.3f\n", load);
+    if (quiet) {
+        printf("%5d %8.1f %8.3f %.3e %5.3f R:%s\n",
+                packet_size, byte_count/(1024.0*1024.0), 
+                rate/(1024.0*1024.0), (double)drop_count/(double)sent_count,
+                load, argv[optind]);
+    } else {
+        printf("Receiving from %s\n", argv[optind]);
+        printf("Packet size %d B\n", packet_size);
+        printf("Got %.1f MB\n", byte_count/(1024.0*1024.0)); 
+        printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
+        printf("Dropped %d packets\n", drop_count);
+        printf("Drop rate %.3e\n", (double)drop_count/(double)sent_count);
+        printf("Avg load %.3f\n", load);
+    }
 
 }
