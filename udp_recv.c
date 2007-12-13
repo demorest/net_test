@@ -10,8 +10,17 @@
 #include <sys/times.h>
 #include <sys/time.h>
 #include <poll.h>
+#include <getopt.h>
 
 #include "udp_params.h"
+
+void usage() {
+    fprintf(stderr,
+            "Usage: udp_recv (options) sender_hostname\n"
+            "Options:\n"
+            "  -p nn, --port=nn    Port number (%d)\n"
+            , PORT_NUM);
+}
 
 /* Use Ctrl-C for stop */
 int run=1;
@@ -22,9 +31,30 @@ int main(int argc, char *argv[]) {
     int i;
     int rv;
 
+    /* Cmd line */
+    static struct option long_opts[] = {
+        {"help",   0, NULL, 'h'},
+        {"port",   1, NULL, 'p'},
+        {0,0,0,0}
+    };
+    int port_num = PORT_NUM;
+    int opt, opti;
+    while ((opt=getopt_long(argc,argv,"hp:",long_opts,&opti))!=-1) {
+        switch (opt) {
+            case 'p':
+                port_num = atoi(optarg);
+                break;
+            case 'h':
+            default:
+                usage();
+                exit(0);
+                break;
+        }
+    }
+
     /* check args */
-    if (argc<2) {
-        fprintf(stderr, "Usage: udp_recv ip_address\n");
+    if (optind==argc) {
+        usage();
         exit(1);
     }
 
@@ -42,7 +72,7 @@ int main(int argc, char *argv[]) {
     /* Bind to local address */
     struct sockaddr_in local_ip;
     local_ip.sin_family = AF_INET;
-    local_ip.sin_port = htons(5000);
+    local_ip.sin_port = htons(port_num);
     local_ip.sin_addr.s_addr = INADDR_ANY;
     int slen=sizeof(local_ip);
     rv = bind(sock, (struct sockaddr *)&local_ip, slen);
@@ -54,7 +84,7 @@ int main(int argc, char *argv[]) {
     /* Set up recvr address */
     struct sockaddr_in ip_addr;
     ip_addr.sin_family = AF_INET;
-    ip_addr.sin_port = htons(5000);
+    ip_addr.sin_port = htons(port_num);
     rv = inet_aton(argv[1], &ip_addr.sin_addr);
     if (rv==0) { fprintf(stderr, "Bad IP address.\n"); exit(1); }
     slen = sizeof(ip_addr);

@@ -7,8 +7,17 @@
 #include <sys/times.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include "udp_params.h"
+
+void usage() {
+    fprintf(stderr,
+            "Usage: udp_send (options) rcvr_hostname\n"
+            "Options:\n"
+            "  -p nn, --port=nn    Port number (%d)\n"
+            , PORT_NUM);
+}
 
 /* Use Ctrl-C for stop */
 int run=1;
@@ -19,9 +28,30 @@ int main(int argc, char *argv[]) {
     int i;
     int rv;
 
+    /* Cmd line */
+    static struct option long_opts[] = {
+        {"help",   0, NULL, 'h'},
+        {"port",   1, NULL, 'p'},
+        {0,0,0,0}
+    };
+    int port_num = PORT_NUM;
+    int opt, opti;
+    while ((opt=getopt_long(argc,argv,"hp:",long_opts,&opti))!=-1) {
+        switch (opt) {
+            case 'p':
+                port_num = atoi(optarg);
+                break;
+            case 'h':
+            default:
+                usage();
+                exit(0);
+                break;
+        }
+    }
+
     /* check args */
-    if (argc<2) {
-        fprintf(stderr, "Usage: udp_send ip_address\n");
+    if (optind==argc) {
+        usage();
         exit(1);
     }
 
