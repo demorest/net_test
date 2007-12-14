@@ -38,10 +38,10 @@ while ($wt<1000) {
     print S_LOG "$send_output\n";
     print R_LOG "$recv_output\n";
     # Variable wait increment
-    if ($wt>100) { $wt += 100; }
-    elsif ($wt>50) { $wt += 10; }
-    elsif ($wt>20) { $wt += 5; }
-    elsif ($wt>10) { $wt += 2; }
+    if ($wt>300) { $wt += 100; }
+    elsif ($wt>100) { $wt += 25; }
+    elsif ($wt>50) { $wt += 5; }
+    elsif ($wt>20) { $wt += 2; }
     else { $wt += 1; }
 }
 

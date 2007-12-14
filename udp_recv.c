@@ -172,10 +172,10 @@ int main(int argc, char *argv[]) {
     drop_count = sent_count - packet_count;
 
     if (quiet) {
-        printf("%5d %8.1f %8.3f %.3e %5.3f R:%s\n",
+        printf("%5d %8.1f %8.3f %.3e %5.3f %d R:%s\n",
                 packet_size, byte_count/(1024.0*1024.0), 
                 rate/(1024.0*1024.0), (double)drop_count/(double)sent_count,
-                load, argv[optind]);
+                load, drop_count, argv[optind]);
     } else {
         printf("Receiving from %s\n", argv[optind]);
         printf("Packet size %d B\n", packet_size);
