@@ -1,9 +1,12 @@
 CC = gcc
-CFLAGS = -g -O2
+CFLAGS = -g -O2 -Wall
 
 PROGS = net_send net_recv udp_send udp_recv
 
 all: $(PROGS)
+
+install: $(PROGS)
+	cp $(PROGS) $(LOCAL)/bin/
 
 clean:
 	rm -f $(PROGS) *~ *.o
