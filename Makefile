@@ -18,5 +18,5 @@ net_recv:  net_recv.c Makefile
 udp_send:  udp_send.c udp_params.h Makefile
 	$(CC) $(CFLAGS) udp_send.c -o udp_send
 udp_recv:  udp_recv.c udp_params.h Makefile
-	$(CC) $(CFLAGS) udp_recv.c -o udp_recv
+	$(CC) $(CFLAGS) udp_recv.c -o udp_recv -lpthread
 

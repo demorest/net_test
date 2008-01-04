@@ -17,6 +17,7 @@
 #include <sys/time.h>
 #include <poll.h>
 #include <getopt.h>
+#include <pthread.h>
 
 #include "udp_params.h"
 
@@ -24,16 +25,35 @@ void usage() {
     fprintf(stderr,
             "Usage: udp_recv (options) sender_hostname\n"
             "Options:\n"
-            "  -p nn, --port=nn         Port number (%d)\n"
-            "  -s nn, --packet-size=nn  Packet size, bytes (%d)\n"
-            "  -b nn, --buffer-size=nn  Receiver buffer size, packets (1)\n"
-            "  -q, --quiet              More compact output\n"
+            "  -p nn, --port=nn            Port number (%d)\n"
+            "  -s nn, --packet-size=nn     Packet size, bytes (%d)\n"
+            "  -b nn, --buffer-size=nn     Receiver buffer size, packets (1)\n"
+            "  -d file, --disk-output=file Output raw data to file\n"
+            "  -q, --quiet                 More compact output\n"
             , PORT_NUM, PACKET_SIZE);
 }
 
 /* Use Ctrl-C for stop */
 int run=1;
 void cc(int sig) { run=0; }
+
+struct write_info {
+    int fd;
+    char *buf;
+    size_t nbytes;
+};
+void *write_to_disk(void *args) {
+    struct write_info *inf = (struct write_info *)args;
+    size_t rv = write(inf->fd, inf->buf, inf->nbytes);
+    if (rv<0) {
+        perror("write");
+        exit(1);
+    }
+    if (rv!=inf->nbytes) { 
+        fprintf(stderr, "Wrote wrong number of bytes.\n");
+    }
+    pthread_exit(NULL);
+}
 
 int main(int argc, char *argv[]) {
 
@@ -45,15 +65,17 @@ int main(int argc, char *argv[]) {
         {"port",   1, NULL, 'p'},
         {"packet-size",   1, NULL, 's'},
         {"buffer-size",   1, NULL, 'b'},
+        {"disk-output",   1, NULL, 'd'},
         {"quiet",  0, NULL, 'q'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
     int buffer_size = 1;
+    int disk_out=0; char ofile[1024];
     int quiet=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -63,6 +85,10 @@ int main(int argc, char *argv[]) {
                 break;
             case 'q':
                 quiet=1;
+                break;
+            case 'd':
+                disk_out=1;
+                strncpy(optarg,ofile,1024);
                 break;
             case 'h':
             default:
@@ -133,6 +159,16 @@ int main(int argc, char *argv[]) {
     pfd.fd = sock;
     pfd.events = POLLIN;
 
+    /* Open output file if needed */
+    int first_write=1;
+    pthread_t write_tid;
+    struct write_info out;
+    if (disk_out) {
+        //out.fd = open(ofile, O_RDWR | O_CREAT | O_LARGEFILE);
+        out.fd = open(ofile, O_RDWR | O_CREAT );
+        out.nbytes = buffer_size_bytes/2;
+    }
+
     /* clock stuff */
     clock_t time0, time1;
     struct tms t0, t1;
@@ -165,12 +201,14 @@ int main(int argc, char *argv[]) {
                     packet_num = *((unsigned int *)bufptr);
                     sent_count = packet_num;
                     fprintf(stderr, "Receiving data.\n");
-                    first=0; 
+                    first=0;
                 } else {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
                     packet_num = *((unsigned int *)bufptr);
                     if (packet_num>sent_count) { sent_count=packet_num; }
                 }
+
+                /* Update counters, pointers */
                 packet_count++;
                 byte_count += (double)rv;
                 bufctr++;
@@ -180,6 +218,22 @@ int main(int argc, char *argv[]) {
                 } else {
                     bufptr += packet_size;
                 }
+
+                /* Disk stuff */
+                if (disk_out && ((bufctr==0) || (bufctr==buffer_size/2)) ){
+                    /* Wait for last write thread to finish */
+                    if (!first_write) { pthread_join(write_tid, NULL); }
+                    /* Launch new write thread */
+                    if (bufctr==0) { out.buf = buf+buffer_size_bytes/2; }
+                    else { out.buf = buf; }
+                    rv = pthread_create(&write_tid, NULL, write_to_disk,
+                            (void *)&out);
+                    if (rv) { 
+                        perror("pthread_create");
+                        exit(1);
+                    }
+                }
+
             }
         } else if (rv==0) {
             if (first==0) { run=0; timeout=1; } /* No data for 1 sec => quit */
