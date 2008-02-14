@@ -94,9 +94,9 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    /* Init buffer, use first 4 bytes as packet count */
+    /* Init buffer, use first 8 bytes as packet count */
     char *buf = (char *)malloc(sizeof(char)*packet_size);
-    *((unsigned int *)buf) = 0;
+    *((unsigned long long *)buf) = 0;
 
     /* Resolve hostname */
     struct hostent *hh;
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, cc);
     time0 = times(&t0);
     while (run && (byte_count<total_data)) {
-        (*((unsigned int *)buf))++;
+        (*((unsigned long long *)buf))++;
         rv = sendto(sock, buf, (size_t)packet_size, 0, 
                 (struct sockaddr *)&ip_addr, slen);
         if (rv==-1) {
