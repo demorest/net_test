@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
     local_ip.sin_family = AF_INET;
     local_ip.sin_port = htons(port_num);
     local_ip.sin_addr.s_addr = INADDR_ANY;
-    int slen=sizeof(local_ip);
+    unsigned slen=sizeof(local_ip);
     rv = bind(sock, (struct sockaddr *)&local_ip, slen);
     if (rv==-1) { 
         perror("bind");
@@ -187,10 +187,10 @@ int main(int argc, char *argv[]) {
 
     /* Recieve packets */
     double byte_count=0;
-    unsigned int packet_count=0;
-    unsigned int sent_count=0;
+    unsigned long long packet_count=0;
+    unsigned long long sent_count=0;
     int drop_count=0;
-    unsigned int packet_num=0;
+    unsigned long long packet_num=0;
     signal(SIGINT, cc);
     int first=1, timeout=0;
     slen = sizeof(ip_addr);
@@ -209,13 +209,13 @@ int main(int argc, char *argv[]) {
             } else {
                 if (first) { 
                     time0 = times(&t0); 
-                    packet_num = *((unsigned int *)bufptr);
+                    packet_num = *((unsigned long long *)bufptr);
                     sent_count = packet_num;
                     fprintf(stderr, "Receiving data.\n");
                     first=0;
                 } else {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
-                    packet_num = *((unsigned int *)bufptr);
+                    packet_num = *((unsigned long long *)bufptr);
                     if (packet_num>sent_count) { sent_count=packet_num; }
                 }
 
