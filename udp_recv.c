@@ -2,6 +2,7 @@
  * Receiver for UDP tests.
  * Paul Demorest 12-15-2007.
  */
+#define _GNU_SOURCE 1  /* sched stuff doesn't work w/o this... */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +19,7 @@
 #include <poll.h>
 #include <getopt.h>
 #include <pthread.h>
+#include <sched.h>
 
 #include "udp_params.h"
 
@@ -29,6 +31,7 @@ void usage() {
             "  -s nn, --packet-size=nn     Packet size, bytes (%d)\n"
             "  -b nn, --buffer-size=nn     Receiver buffer size, packets (1)\n"
             "  -d file, --disk-output=file Output raw data to file\n"
+            "  -c n, --cpu=n               Use only CPU #n\n"
             "  -q, --quiet                 More compact output\n"
             , PORT_NUM, PACKET_SIZE);
 }
@@ -72,6 +75,7 @@ int main(int argc, char *argv[]) {
         {"packet-size",   1, NULL, 's'},
         {"buffer-size",   1, NULL, 'b'},
         {"disk-output",   1, NULL, 'd'},
+        {"cpu",    1, NULL, 'c'},
         {"quiet",  0, NULL, 'q'},
         {0,0,0,0}
     };
@@ -79,9 +83,10 @@ int main(int argc, char *argv[]) {
     int packet_size = PACKET_SIZE;
     int buffer_size = 1;
     int disk_out=0; char ofile[1024];
+    int cpu_idx=-1;
     int quiet=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -99,6 +104,9 @@ int main(int argc, char *argv[]) {
                 disk_out=1;
                 strncpy(ofile,optarg,1024);
                 break;
+            case 'c':
+                cpu_idx = atoi(optarg);
+                break;
             case 'h':
             default:
                 usage();
@@ -111,6 +119,23 @@ int main(int argc, char *argv[]) {
     if (optind==argc) {
         usage();
         exit(1);
+    }
+
+    /* Set CPU affinity */
+    cpu_set_t cpuset, cpuset_orig;
+    if (cpu_idx>=0) {
+        /* get current list */
+        sched_getaffinity(0, sizeof(cpu_set_t), &cpuset_orig);
+        /* blank out new list */
+        CPU_ZERO(&cpuset);
+        /* Add requested CPU */
+        CPU_SET(cpu_idx, &cpuset);
+        /* use new settings */
+        rv = sched_setaffinity(0, sizeof(cpu_set_t), &cpuset);
+        if (rv<0) { 
+            perror("sched_setaffinity");
+            exit(1);
+        }
     }
 
     /* Create socket */
@@ -271,10 +296,10 @@ int main(int argc, char *argv[]) {
     drop_count = sent_count - packet_count;
 
     if (quiet) {
-        printf("%5d %8.1f %8.3f %.3e %5.3f %d R:%s\n",
+        printf("%5d %8.1f %8.3f %.3e %5.3f %d %d R:%s\n",
                 packet_size, byte_count/(1024.0*1024.0), 
                 rate/(1024.0*1024.0), (double)drop_count/(double)sent_count,
-                load, drop_count, argv[optind]);
+                load, drop_count, cpu_idx, argv[optind]);
     } else {
         printf("Receiving from %s\n", argv[optind]);
         printf("Packet size %d B\n", packet_size);
