@@ -128,13 +128,13 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, cc);
     time0 = times(&t0);
     while (run && (byte_count<total_data)) {
-        (*((unsigned long long *)buf))++;
         rv = sendto(sock, buf, (size_t)packet_size, 0, 
                 (struct sockaddr *)&ip_addr, slen);
         if (rv==-1) {
             perror("sendto");
             exit(1);
         }
+        (*((unsigned long long *)buf))++;
         byte_count += (double)packet_size;
         for (i=0; i<1000*wait_cyc; i++) { __asm__("nop;nop;nop"); }
     }
