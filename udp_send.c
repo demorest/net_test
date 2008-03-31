@@ -28,6 +28,7 @@ void usage() {
             "  -d nn, --total-data=nn   Total amount to send, GB (%.1f)\n"
             "  -q, --quiet              More compact output\n"
             "  -w nn, --wait=nn         Wait 1000*nn cycles (0)\n"
+            "  -n, --seq_num            Repeat seq num in start of data\n"
             , PORT_NUM, PACKET_SIZE, TOTAL_DATA);
 }
 
@@ -55,8 +56,9 @@ int main(int argc, char *argv[]) {
     float total_data = TOTAL_DATA;
     int wait_cyc=0;
     int quiet=0;
+    int seq_repeat=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:n",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -72,6 +74,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'w':
                 wait_cyc = atoi(optarg);
+                break;
+            case 'n':
+                seq_repeat=1;
                 break;
             case 'h':
             default:
@@ -124,6 +129,9 @@ int main(int argc, char *argv[]) {
     /* Send packets */
     int loop_count=10;
     double byte_count=0;
+    unsigned long long *seq_num, *seq_data;
+    seq_num = (unsigned long long *)buf;
+    seq_data = seq_num + 1;
     total_data *= 1024.0*1024.0*1024.0; /* change to bytes */
     signal(SIGINT, cc);
     time0 = times(&t0);
@@ -134,7 +142,8 @@ int main(int argc, char *argv[]) {
             perror("sendto");
             exit(1);
         }
-        (*((unsigned long long *)buf))++;
+        (*seq_num)++;
+        if (seq_repeat) { *seq_data = *seq_num; }
         byte_count += (double)packet_size;
         for (i=0; i<1000*wait_cyc; i++) { __asm__("nop;nop;nop"); }
     }
