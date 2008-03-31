@@ -34,6 +34,7 @@ void usage() {
             "  -c n, --cpu=n               Use only CPU #n\n"
             "  -q, --quiet                 More compact output\n"
             "  -e, --endian                Byte-swap seq num\n"
+            "  -a, --print                 Print packet seq nums\n"
             , PORT_NUM, PACKET_SIZE);
 }
 
@@ -93,6 +94,7 @@ int main(int argc, char *argv[]) {
         {"cpu",    1, NULL, 'c'},
         {"quiet",  0, NULL, 'q'},
         {"endian", 0, NULL, 'e'},
+        {"print",  0, NULL, 'a'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
@@ -100,9 +102,9 @@ int main(int argc, char *argv[]) {
     int buffer_size = 1;
     int disk_out=0; char ofile[1024];
     int cpu_idx=-1;
-    int quiet=0, endian=0;
+    int quiet=0, endian=0, print_all=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:e",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ea",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -125,6 +127,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'e':
                 endian=1;
+                break;
+            case 'a':
+                print_all=1;
                 break;
             case 'h':
             default:
@@ -234,7 +239,7 @@ int main(int argc, char *argv[]) {
     unsigned long long packet_count=0;
     unsigned long long sent_count=0;
     int drop_count=0;
-    unsigned long long packet_num=0;
+    unsigned long long packet_num=0, last_packet_num=0;
     signal(SIGINT, cc);
     int first=1, timeout=0;
     slen = sizeof(ip_addr);
@@ -256,7 +261,7 @@ int main(int argc, char *argv[]) {
                     packet_num = *((unsigned long long *)bufptr);
                     if (endian) byte_swap(&packet_num);
                     sent_count = packet_num;
-                    fprintf(stderr, "Receiving data.\n");
+                    fprintf(stderr, "Receiving data (size=%d).\n", rv);
                     first=0;
                 } else {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
@@ -266,12 +271,15 @@ int main(int argc, char *argv[]) {
                 }
 
                 /* Test, print packet_num */
-                int i;
-                for (i=0; i<8; i++) {
-                    printf("%2.2X ", *(unsigned char *)&bufptr[i]);
+                if (print_all)  {
+                    int i;
+                    for (i=0; i<8; i++) {
+                        printf("%2.2X ", *(unsigned char *)&bufptr[i]);
+                    }
+                    printf("\n");
+                    printf("%lld (diff=%d)\n", packet_num,
+                            packet_num-last_packet_num);
                 }
-                printf("\n");
-                printf("%lld\n", packet_num);
 
                 /* Update counters, pointers */
                 packet_count++;
@@ -283,6 +291,7 @@ int main(int argc, char *argv[]) {
                 } else {
                     bufptr += packet_size;
                 }
+                last_packet_num=packet_num;
 
                 /* Disk stuff */
                 if (disk_out && ((bufctr==0) || (bufctr==buffer_size/2)) ){
