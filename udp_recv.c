@@ -33,6 +33,7 @@ void usage() {
             "  -d file, --disk-output=file Output raw data to file\n"
             "  -c n, --cpu=n               Use only CPU #n\n"
             "  -q, --quiet                 More compact output\n"
+            "  -e, --endian                Byte-swap seq num\n"
             , PORT_NUM, PACKET_SIZE);
 }
 
@@ -64,6 +65,20 @@ void *write_to_disk(void *args) {
     pthread_exit(NULL);
 }
 
+void byte_swap(unsigned long long *d) {
+    unsigned long long tmp;
+    char *ptr1, *ptr2;
+    ptr1 = (char *)d;
+    ptr2 = (char *)&tmp + 7;
+    int i;
+    for (i=0; i<8; i++) {
+        ptr1 = (char *)d + i;
+        ptr2 = (char *)&tmp + 7 - i;
+        memcpy(ptr2, ptr1, 1);
+    }
+    *d = tmp;
+}
+
 int main(int argc, char *argv[]) {
 
     int rv;
@@ -77,6 +92,7 @@ int main(int argc, char *argv[]) {
         {"disk-output",   1, NULL, 'd'},
         {"cpu",    1, NULL, 'c'},
         {"quiet",  0, NULL, 'q'},
+        {"endian", 0, NULL, 'e'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
@@ -84,9 +100,9 @@ int main(int argc, char *argv[]) {
     int buffer_size = 1;
     int disk_out=0; char ofile[1024];
     int cpu_idx=-1;
-    int quiet=0;
+    int quiet=0, endian=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:e",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -106,6 +122,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'c':
                 cpu_idx = atoi(optarg);
+                break;
+            case 'e':
+                endian=1;
                 break;
             case 'h':
             default:
@@ -222,7 +241,7 @@ int main(int argc, char *argv[]) {
     int bufctr=0;
     char *bufptr=buf;
     while (run) {
-        rv = poll(&pfd, 1, 1000);
+        rv = poll(&pfd, 1, 2000);
         if (rv > 0) {
             rv = recvfrom(sock, bufptr, packet_size, 0,
                     (struct sockaddr *)&ip_addr, &slen);
@@ -235,14 +254,24 @@ int main(int argc, char *argv[]) {
                 if (first) { 
                     time0 = times(&t0); 
                     packet_num = *((unsigned long long *)bufptr);
+                    if (endian) byte_swap(&packet_num);
                     sent_count = packet_num;
                     fprintf(stderr, "Receiving data.\n");
                     first=0;
                 } else {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
                     packet_num = *((unsigned long long *)bufptr);
+                    if (endian) byte_swap(&packet_num);
                     if (packet_num>sent_count) { sent_count=packet_num; }
                 }
+
+                /* Test, print packet_num */
+                int i;
+                for (i=0; i<8; i++) {
+                    printf("%2.2X ", *(unsigned char *)&bufptr[i]);
+                }
+                printf("\n");
+                printf("%lld\n", packet_num);
 
                 /* Update counters, pointers */
                 packet_count++;
@@ -275,8 +304,11 @@ int main(int argc, char *argv[]) {
         } else if (rv==0) {
             if (first==0) { run=0; timeout=1; } /* No data for 1 sec => quit */
         } else {
-            perror("poll");
-            exit(1);
+            if (errno==EINTR) { run=0; }
+            else {
+                perror("poll");
+                exit(1);
+            }
         }
     }
     // wait for write thread
