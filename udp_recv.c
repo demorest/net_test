@@ -336,8 +336,10 @@ int main(int argc, char *argv[]) {
 
     sent_count -= packet_0;
 
-    double time_sec = (double)(time1-time0)/(double)tps 
-        - timeout ? (double)poll_timeout/1000.0 : 0.0;
+    double time_sec = (double)(time1-time0)/(double)tps;
+    if (timeout && (poll_timeout>0)) {
+        time_sec -= (double)poll_timeout/1000.0;
+    }
     double load = 
         (double)(t1.tms_utime+t1.tms_stime-t0.tms_utime-t0.tms_stime) /
         (double)(time1-time0);
