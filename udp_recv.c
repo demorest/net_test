@@ -241,8 +241,8 @@ int main(int argc, char *argv[]) {
     }
 
     /* clock stuff */
-    clock_t time0, time1;
-    struct tms t0, t1;
+    clock_t time0, time1, time_cur, time_last;
+    struct tms t0, t1, tt;
     long int tps = sysconf(_SC_CLK_TCK);
 
     /* Recieve packets */
@@ -269,6 +269,8 @@ int main(int argc, char *argv[]) {
             } else {
                 if (first) { 
                     time0 = times(&t0); 
+                    time_cur = time0;
+                    time_last = time0;
                     packet_num = *((unsigned long long *)bufptr);
                     if (endian) byte_swap(&packet_num);
                     sent_count = packet_num;
@@ -276,6 +278,8 @@ int main(int argc, char *argv[]) {
                     fprintf(stderr, "Receiving data (size=%d).\n", rv);
                     first=0;
                 } else {
+                    time_last = time_cur;
+                    time_cur = times(&tt);
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
                     packet_num = *((unsigned long long *)bufptr);
                     if (endian) byte_swap(&packet_num);
@@ -288,8 +292,9 @@ int main(int argc, char *argv[]) {
                     for (i=0; i<8; i++) {
                         printf("%2.2X ", *(unsigned char *)&bufptr[i]);
                     }
-                    printf("%20lld (diff=%lld)\n", packet_num,
-                            packet_num-last_packet_num);
+                    printf("%20lld (diff=%lld, %.3fs)\n", packet_num,
+                            packet_num-last_packet_num,
+                            (double)(time_cur-time_last)/(double)tps);
                 }
 
                 /* Update counters, pointers */
