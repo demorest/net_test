@@ -29,13 +29,14 @@ void usage() {
             "Options:\n"
             "  -p nn, --port=nn            Port number (%d)\n"
             "  -s nn, --packet-size=nn     Packet size, bytes (%d)\n"
-            "  -b nn, --buffer-size=nn     Receiver buffer size, packets (1)\n"
+            "  -b nn, --buffer-size=nn     Receiver buffer size, packets (2)\n"
             "  -d file, --disk-output=file Output raw data to file\n"
             "  -c n, --cpu=n               Use only CPU #n\n"
             "  -q, --quiet                 More compact output\n"
             "  -e, --endian                Byte-swap seq num\n"
             "  -a, --print                 Print packet seq nums\n"
             "  -t nn, --timeout=nn         Receive timeout, ms (1000)\n"
+            "  -n nn, --npacket=nn         Stop after n packets\n"
             , PORT_NUM, PACKET_SIZE);
 }
 
@@ -97,17 +98,18 @@ int main(int argc, char *argv[]) {
         {"endian", 0, NULL, 'e'},
         {"print",  0, NULL, 'a'},
         {"timeout",  1, NULL, 't'},
+        {"npacket",  1, NULL, 'n'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
-    int buffer_size = 1;
+    int buffer_size = 2;
     int disk_out=0; char ofile[1024];
     int cpu_idx=-1;
     int quiet=0, endian=0, print_all=0;
-    int poll_timeout=1000;
+    int poll_timeout=1000, npacket=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:eat:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:eat:n:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -136,6 +138,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 't':
                 poll_timeout = atoi(optarg);
+                break;
+            case 'n':
+                npacket = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -314,6 +319,9 @@ int main(int argc, char *argv[]) {
                     }
                     first_write=0;
                 }
+
+                /* Check if we need to stop */
+                if ((npacket>0) && (packet_count>=npacket)) run = 0;
 
             }
         } else if (rv==0) {
