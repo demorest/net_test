@@ -288,7 +288,7 @@ int main(int argc, char *argv[]) {
                     for (i=0; i<8; i++) {
                         printf("%2.2X ", *(unsigned char *)&bufptr[i]);
                     }
-                    printf("%20lld (diff=%d)\n", packet_num,
+                    printf("%20lld (diff=%lld)\n", packet_num,
                             packet_num-last_packet_num);
                 }
 
@@ -364,7 +364,9 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Receiving from %s\n", argv[optind]);
         printf("Packet size %d B\n", packet_size);
-        printf("Got %.1f MB\n", byte_count/(1024.0*1024.0)); 
+        printf("Total time %.3f s\n", time_sec);
+        printf("Got %.1f MB (%lld packets)\n", byte_count/(1024.0*1024.0),
+                packet_count); 
         printf("Recv rate %.3f MB/s\n", rate/(1024.0*1024.0));
         printf("Send rate %.3f MB/s\n", srate/(1024.0*1024.0));
         printf("Dropped %d packets\n", drop_count);
