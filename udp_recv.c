@@ -35,6 +35,7 @@ void usage() {
             "  -q, --quiet                 More compact output\n"
             "  -e, --endian                Byte-swap seq num\n"
             "  -a, --print                 Print packet seq nums\n"
+            "  -t nn, --timeout=nn         Receive timeout, ms (1000)\n"
             , PORT_NUM, PACKET_SIZE);
 }
 
@@ -95,6 +96,7 @@ int main(int argc, char *argv[]) {
         {"quiet",  0, NULL, 'q'},
         {"endian", 0, NULL, 'e'},
         {"print",  0, NULL, 'a'},
+        {"timeout",  1, NULL, 't'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
@@ -103,8 +105,9 @@ int main(int argc, char *argv[]) {
     int disk_out=0; char ofile[1024];
     int cpu_idx=-1;
     int quiet=0, endian=0, print_all=0;
+    int poll_timeout=1000;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ea",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:eat:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -130,6 +133,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'a':
                 print_all=1;
+                break;
+            case 't':
+                poll_timeout = atoi(optarg);
                 break;
             case 'h':
             default:
@@ -246,7 +252,7 @@ int main(int argc, char *argv[]) {
     int bufctr=0;
     char *bufptr=buf;
     while (run) {
-        rv = poll(&pfd, 1, 2000);
+        rv = poll(&pfd, 1, poll_timeout);
         if (rv > 0) {
             rv = recvfrom(sock, bufptr, packet_size, 0,
                     (struct sockaddr *)&ip_addr, &slen);
@@ -330,7 +336,8 @@ int main(int argc, char *argv[]) {
 
     sent_count -= packet_0;
 
-    double time_sec = (double)(time1-time0)/(double)tps - (double)timeout;
+    double time_sec = (double)(time1-time0)/(double)tps 
+        - timeout ? (double)poll_timeout/1000.0 : 0.0;
     double load = 
         (double)(t1.tms_utime+t1.tms_stime-t0.tms_utime-t0.tms_stime) /
         (double)(time1-time0);
