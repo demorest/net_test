@@ -239,7 +239,7 @@ int main(int argc, char *argv[]) {
     unsigned long long packet_count=0;
     unsigned long long sent_count=0;
     int drop_count=0;
-    unsigned long long packet_num=0, last_packet_num=0;
+    unsigned long long packet_0=0, packet_num=0, last_packet_num=0;
     signal(SIGINT, cc);
     int first=1, timeout=0;
     slen = sizeof(ip_addr);
@@ -261,6 +261,7 @@ int main(int argc, char *argv[]) {
                     packet_num = *((unsigned long long *)bufptr);
                     if (endian) byte_swap(&packet_num);
                     sent_count = packet_num;
+                    packet_0 = packet_num;
                     fprintf(stderr, "Receiving data (size=%d).\n", rv);
                     first=0;
                 } else {
@@ -276,8 +277,7 @@ int main(int argc, char *argv[]) {
                     for (i=0; i<8; i++) {
                         printf("%2.2X ", *(unsigned char *)&bufptr[i]);
                     }
-                    printf("\n");
-                    printf("%lld (diff=%d)\n", packet_num,
+                    printf("%20lld (diff=%d)\n", packet_num,
                             packet_num-last_packet_num);
                 }
 
@@ -328,11 +328,14 @@ int main(int argc, char *argv[]) {
     }
     time1 = times(&t1);
 
+    sent_count -= packet_0;
+
     double time_sec = (double)(time1-time0)/(double)tps - (double)timeout;
     double load = 
         (double)(t1.tms_utime+t1.tms_stime-t0.tms_utime-t0.tms_stime) /
         (double)(time1-time0);
     double rate = (double)byte_count/time_sec;
+    double srate = (double)sent_count * (double)packet_size / time_sec;
 
     drop_count = sent_count - packet_count;
 
@@ -345,7 +348,8 @@ int main(int argc, char *argv[]) {
         printf("Receiving from %s\n", argv[optind]);
         printf("Packet size %d B\n", packet_size);
         printf("Got %.1f MB\n", byte_count/(1024.0*1024.0)); 
-        printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
+        printf("Recv rate %.3f MB/s\n", rate/(1024.0*1024.0));
+        printf("Send rate %.3f MB/s\n", srate/(1024.0*1024.0));
         printf("Dropped %d packets\n", drop_count);
         printf("Drop rate %.3e\n", (double)drop_count/(double)sent_count);
         printf("Avg load %.3f\n", load);
