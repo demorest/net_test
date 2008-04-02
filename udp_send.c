@@ -29,8 +29,24 @@ void usage() {
             "  -q, --quiet              More compact output\n"
             "  -w nn, --wait=nn         Wait 1000*nn cycles (0)\n"
             "  -n, --seq_num            Repeat seq num in start of data\n"
+            "  -e, --endian             Byte-swap seq num\n"
             , PORT_NUM, PACKET_SIZE, TOTAL_DATA);
 }
+
+void byte_swap(unsigned long long *d) {
+    unsigned long long tmp;
+    char *ptr1, *ptr2;
+    ptr1 = (char *)d;
+    ptr2 = (char *)&tmp + 7;
+    int i;
+    for (i=0; i<8; i++) {
+        ptr1 = (char *)d + i;
+        ptr2 = (char *)&tmp + 7 - i;
+        memcpy(ptr2, ptr1, 1);
+    }
+    *d = tmp;
+}
+
 
 /* Use Ctrl-C for stop */
 int run=1;
@@ -49,6 +65,7 @@ int main(int argc, char *argv[]) {
         {"total-data",    1, NULL, 'd'},
         {"quiet",  0, NULL, 'q'},
         {"wait",   1, NULL, 'w'},
+        {"endian", 0, NULL, 'e'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
@@ -57,8 +74,9 @@ int main(int argc, char *argv[]) {
     int wait_cyc=0;
     int quiet=0;
     int seq_repeat=0;
+    int endian=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:n",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:ne",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -77,6 +95,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'n':
                 seq_repeat=1;
+                break;
+            case 'e':
+                endian=1;
                 break;
             case 'h':
             default:
@@ -129,7 +150,7 @@ int main(int argc, char *argv[]) {
     /* Send packets */
     int loop_count=10;
     double byte_count=0;
-    unsigned long long *seq_num, *seq_data;
+    unsigned long long *seq_num, *seq_data, seq_num_tmp=0;
     seq_num = (unsigned long long *)buf;
     seq_data = seq_num + 1;
     total_data *= 1024.0*1024.0*1024.0; /* change to bytes */
@@ -142,7 +163,9 @@ int main(int argc, char *argv[]) {
             perror("sendto");
             exit(1);
         }
-        (*seq_num)++;
+        seq_num_tmp++;
+        (*seq_num) = seq_num_tmp;
+         if (endian) { byte_swap(seq_num); }
         if (seq_repeat) { *seq_data = *seq_num; }
         byte_count += (double)packet_size;
         for (i=0; i<1000*wait_cyc; i++) { __asm__("nop;nop;nop"); }
