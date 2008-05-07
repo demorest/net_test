@@ -187,6 +187,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Buffer size is negative!\n");
         exit(1);
     }
+    if (buffer_size % 2) { buffer_size++; }
     if (buffer_size_bytes>1024*1024*1024) { /* 1 GB max */
         fprintf(stderr, "Max buffer size is 1 GB\n");
         exit(1);
