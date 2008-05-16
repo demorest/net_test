@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <signal.h>
 #include <unistd.h>
@@ -205,12 +206,6 @@ int main(int argc, char *argv[]) {
     }
     //printf("ipaddr=%s\n", inet_ntoa(*(struct in_addr *)hh->h_addr));
 
-    /* Set up address to recieve from */
-    struct sockaddr_in ip_addr;
-    ip_addr.sin_family = AF_INET;
-    ip_addr.sin_port = htons(port_num);
-    memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
-
     /* Bind to local address */
     struct sockaddr_in local_ip;
     local_ip.sin_family = AF_INET;
@@ -222,6 +217,19 @@ int main(int argc, char *argv[]) {
         perror("bind");
         exit(1);
     }
+
+    /* Set up address to recieve from */
+    struct sockaddr_in ip_addr;
+    ip_addr.sin_family = AF_INET;
+    //ip_addr.sin_port = htons(port_num);
+    memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
+    rv = connect(sock, (struct sockaddr *)&ip_addr, sizeof(ip_addr));
+    if (rv==-1) { 
+        perror("connect");
+        exit(1);
+    }
+    fprintf(stderr, "ipaddr=%s\n", 
+            inet_ntoa(*(struct in_addr *)&ip_addr.sin_addr));
 
     /* Make recvs non-blocking, set up for polling */
     fcntl(sock, F_SETFL, O_NONBLOCK);
@@ -260,8 +268,11 @@ int main(int argc, char *argv[]) {
     while (run) {
         rv = poll(&pfd, 1, poll_timeout);
         if (rv > 0) {
-            rv = recvfrom(sock, bufptr, packet_size, 0,
+            rv = recv(sock, bufptr, packet_size, MSG_TRUNC);
+#if 0 
+            rv = recvfrom(sock, bufptr, packet_size, MSG_TRUNC,
                     (struct sockaddr *)&ip_addr, &slen);
+#endif
             if (rv==-1) {
                 if (errno!=EAGAIN) { 
                     perror("recvfrom");
@@ -276,7 +287,15 @@ int main(int argc, char *argv[]) {
                     if (endian) byte_swap(&packet_num);
                     sent_count = packet_num;
                     packet_0 = packet_num;
-                    fprintf(stderr, "Receiving data (size=%d).\n", rv);
+                    fprintf(stderr, "Receiving data (packet size=%d).\n", rv);
+                    if (rv != packet_size) {
+                        fprintf(stderr, 
+                                "  Unexpected packet size: data will be %s.\n",
+                                (rv > packet_size) ? "truncated" : "padded");
+                        
+                    }
+                    //fprintf(stderr, "ipaddr=%s\n", 
+                    //        inet_ntoa(*(struct in_addr *)&ip_addr.sin_addr));
                     first=0;
                 } else {
                     time_last = time_cur;
@@ -300,7 +319,8 @@ int main(int argc, char *argv[]) {
 
                 /* Update counters, pointers */
                 packet_count++;
-                byte_count += (double)rv;
+                byte_count += (packet_size > rv) ? 
+                    (double)rv : (double)packet_size;
                 bufctr++;
                 if (bufctr >= buffer_size) {
                     bufctr = 0;
