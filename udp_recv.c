@@ -35,6 +35,7 @@ void usage() {
             "  -c n, --cpu=n               Use only CPU #n\n"
             "  -q, --quiet                 More compact output\n"
             "  -e, --endian                Byte-swap seq num\n"
+            "  -i n, --incr=n              Seq num increment per packet (1)\n"
             "  -a, --print                 Print packet seq nums\n"
             "  -t nn, --timeout=nn         Receive timeout, ms (1000)\n"
             "  -n nn, --npacket=nn         Stop after n packets\n"
@@ -97,6 +98,7 @@ int main(int argc, char *argv[]) {
         {"cpu",    1, NULL, 'c'},
         {"quiet",  0, NULL, 'q'},
         {"endian", 0, NULL, 'e'},
+        {"incr",   1, NULL, 'i'},
         {"print",  0, NULL, 'a'},
         {"timeout",  1, NULL, 't'},
         {"npacket",  1, NULL, 'n'},
@@ -109,8 +111,9 @@ int main(int argc, char *argv[]) {
     int cpu_idx=-1;
     int quiet=0, endian=0, print_all=0;
     int poll_timeout=1000, npacket=0;
+    unsigned long long packet_incr=1;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:eat:n:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ei:at:n:",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -133,6 +136,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'e':
                 endian=1;
+                break;
+            case 'i':
+                packet_incr = atoll(optarg);
                 break;
             case 'a':
                 print_all=1;
@@ -285,8 +291,8 @@ int main(int argc, char *argv[]) {
                     time_last = time0;
                     packet_num = *((unsigned long long *)bufptr);
                     if (endian) byte_swap(&packet_num);
-                    sent_count = packet_num;
-                    packet_0 = packet_num;
+                    sent_count = packet_num/packet_incr;
+                    packet_0 = packet_num/packet_incr;
                     fprintf(stderr, "Receiving data (packet size=%d).\n", rv);
                     if (rv != packet_size) {
                         fprintf(stderr, 
@@ -303,7 +309,8 @@ int main(int argc, char *argv[]) {
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
                     packet_num = *((unsigned long long *)bufptr);
                     if (endian) byte_swap(&packet_num);
-                    if (packet_num>sent_count) { sent_count=packet_num; }
+                    if (packet_num/packet_incr>sent_count) 
+                        sent_count=packet_num/packet_incr; 
                 }
 
                 /* Test, print packet_num */
@@ -327,6 +334,16 @@ int main(int argc, char *argv[]) {
                     bufptr = buf;
                 } else {
                     bufptr += packet_size;
+                }
+                if (packet_count>1) {
+                    if ((packet_num-last_packet_num) % packet_incr) {
+                        fprintf(stderr, "Inconsistent packet_incr (count=%lld, send_count=%lld)?\n", 
+                                packet_count, sent_count-packet_0);
+                        fprintf(stderr, "diff=%lld (diff mod incr)=%lld\n",
+                                packet_num-last_packet_num,
+                                (packet_num-last_packet_num)%packet_incr);
+
+                    }
                 }
                 last_packet_num=packet_num;
 
