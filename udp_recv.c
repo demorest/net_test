@@ -35,6 +35,7 @@ void usage() {
             "  -c n, --cpu=n               Use only CPU #n\n"
             "  -q, --quiet                 More compact output\n"
             "  -e, --endian                Byte-swap seq num\n"
+            "  -w, --wait                  Wait for packet 0\n"
             "  -i n, --incr=n              Seq num increment per packet (1)\n"
             "  -a, --print                 Print packet seq nums\n"
             "  -t nn, --timeout=nn         Receive timeout, ms (1000)\n"
@@ -102,6 +103,7 @@ int main(int argc, char *argv[]) {
         {"print",  0, NULL, 'a'},
         {"timeout",  1, NULL, 't'},
         {"npacket",  1, NULL, 'n'},
+        {"wait",     0, NULL, 'w'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
@@ -111,9 +113,10 @@ int main(int argc, char *argv[]) {
     int cpu_idx=-1;
     int quiet=0, endian=0, print_all=0;
     int poll_timeout=1000, npacket=0;
+    int wait_for_0=0;
     unsigned long long packet_incr=1;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ei:at:n:",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ei:at:n:w",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -148,6 +151,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'n':
                 npacket = atoi(optarg);
+                break;
+            case 'w':
+                wait_for_0=1;
                 break;
             case 'h':
             default:
@@ -265,7 +271,7 @@ int main(int argc, char *argv[]) {
     unsigned long long packet_count=0;
     unsigned long long sent_count=0;
     int drop_count=0;
-    unsigned long long packet_0=0, packet_num=0, last_packet_num=0;
+    unsigned long long packet_0=0, packet_num=0, last_packet_num=2048;
     signal(SIGINT, cc);
     int first=1, timeout=0;
     slen = sizeof(ip_addr);
@@ -285,12 +291,24 @@ int main(int argc, char *argv[]) {
                     exit(1);
                 }
             } else {
+
+                /* Get packet number */
+                packet_num = *((unsigned long long *)bufptr);
+                if (endian) byte_swap(&packet_num);
+
+                /* If we're waiting for packet 0, continue */
+                if (wait_for_0) {
+                    if (packet_num <= last_packet_num-2048) 
+                        wait_for_0 = 0;
+                    else
+                        continue;
+                }
+
+                /* Basic timing stuff */
                 if (first) { 
                     time0 = times(&t0); 
                     time_cur = time0;
                     time_last = time0;
-                    packet_num = *((unsigned long long *)bufptr);
-                    if (endian) byte_swap(&packet_num);
                     sent_count = packet_num/packet_incr;
                     packet_0 = packet_num/packet_incr;
                     fprintf(stderr, "Receiving data (packet size=%d).\n", rv);
@@ -307,8 +325,6 @@ int main(int argc, char *argv[]) {
                     time_last = time_cur;
                     time_cur = times(&tt);
                     //drop_count += *((unsigned int *)buf) - (packet_num+1);
-                    packet_num = *((unsigned long long *)bufptr);
-                    if (endian) byte_swap(&packet_num);
                     if (packet_num/packet_incr>sent_count) 
                         sent_count=packet_num/packet_incr; 
                 }
