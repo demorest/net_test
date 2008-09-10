@@ -265,6 +265,8 @@ int main(int argc, char *argv[]) {
     clock_t time0, time1, time_cur, time_last;
     struct tms t0, t1, tt;
     long int tps = sysconf(_SC_CLK_TCK);
+    time0 = times(&t0);
+    time_cur = time0;
 
     /* Recieve packets */
     double byte_count=0;
