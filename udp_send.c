@@ -156,7 +156,7 @@ int main(int argc, char *argv[]) {
     total_data *= 1024.0*1024.0*1024.0; /* change to bytes */
     signal(SIGINT, cc);
     time0 = times(&t0);
-    while (run && (byte_count<total_data)) {
+    while (run && (byte_count<total_data || total_data<=0)) {
         rv = sendto(sock, buf, (size_t)packet_size, 0, 
                 (struct sockaddr *)&ip_addr, slen);
         if (rv==-1) {
