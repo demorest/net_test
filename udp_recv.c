@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
     ip_addr.sin_family = AF_INET;
     //ip_addr.sin_port = htons(port_num);
     memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
-    rv = connect(sock, (struct sockaddr *)&ip_addr, sizeof(ip_addr));
+    //rv = connect(sock, (struct sockaddr *)&ip_addr, sizeof(ip_addr));
     if (rv==-1) { 
         perror("connect");
         exit(1);
@@ -272,6 +272,7 @@ int main(int argc, char *argv[]) {
     double byte_count=0;
     unsigned long long packet_count=0;
     unsigned long long sent_count=0;
+    unsigned long long out_of_order_count=0;
     int drop_count=0;
     unsigned long long packet_0=0, packet_num=0, last_packet_num=2048;
     signal(SIGINT, cc);
@@ -282,8 +283,8 @@ int main(int argc, char *argv[]) {
     while (run) {
         rv = poll(&pfd, 1, poll_timeout);
         if (rv > 0) {
-            rv = recv(sock, bufptr, packet_size, MSG_TRUNC);
-#if 0 
+            //rv = recv(sock, bufptr, packet_size, MSG_TRUNC);
+#if 1 
             rv = recvfrom(sock, bufptr, packet_size, MSG_TRUNC,
                     (struct sockaddr *)&ip_addr, &slen);
 #endif
@@ -362,6 +363,8 @@ int main(int argc, char *argv[]) {
                                 (packet_num-last_packet_num)%packet_incr);
 
                     }
+                    if (packet_num<last_packet_num)
+                        out_of_order_count++;
                 }
                 last_packet_num=packet_num;
 
@@ -432,6 +435,7 @@ int main(int argc, char *argv[]) {
         printf("Send rate %.3f MB/s\n", srate/(1024.0*1024.0));
         printf("Dropped %d packets\n", drop_count);
         printf("Drop rate %.3e\n", (double)drop_count/(double)sent_count);
+        printf("Out-of-order %lld packets\n", out_of_order_count);
         printf("Avg load %.3f\n", load);
     }
 

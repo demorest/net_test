@@ -52,6 +52,10 @@ void byte_swap(unsigned long long *d) {
 int run=1;
 void cc(int sig) { run=0; }
 
+int seq_reset=0;
+unsigned long long seq_num_tmp=0;
+void reset_seq_num(int sig) { seq_num_tmp=0; seq_reset=1; }
+
 int main(int argc, char *argv[]) {
 
     int i;
@@ -66,17 +70,19 @@ int main(int argc, char *argv[]) {
         {"quiet",  0, NULL, 'q'},
         {"wait",   1, NULL, 'w'},
         {"endian", 0, NULL, 'e'},
+        {"print", 0, NULL, 'a'},
         {0,0,0,0}
     };
     int port_num = PORT_NUM;
     int packet_size = PACKET_SIZE;
     float total_data = TOTAL_DATA;
-    int wait_cyc=0;
+    float wait_cyc=0;
     int quiet=0;
     int seq_repeat=0;
     int endian=0;
+    int print_idx=0;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:ne",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:d:qw:nea",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -91,13 +97,16 @@ int main(int argc, char *argv[]) {
                 quiet=1;
                 break;
             case 'w':
-                wait_cyc = atoi(optarg);
+                wait_cyc = atof(optarg);
                 break;
             case 'n':
                 seq_repeat=1;
                 break;
             case 'e':
                 endian=1;
+                break;
+            case 'a':
+                print_idx=1;
                 break;
             case 'h':
             default:
@@ -123,6 +132,9 @@ int main(int argc, char *argv[]) {
     /* Init buffer, use first 8 bytes as packet count */
     char *buf = (char *)malloc(sizeof(char)*packet_size);
     *((unsigned long long *)buf) = 0;
+    for (i=0; i<packet_size; i++) {
+        buf[i] = random();
+    }
 
     /* Resolve hostname */
     struct hostent *hh;
@@ -143,19 +155,22 @@ int main(int argc, char *argv[]) {
     int slen = sizeof(ip_addr);
 
     /* clock stuff */
-    clock_t time0, time1;
-    struct tms t0, t1;
+    clock_t time0, time1, time_cur, time_last;
+    struct tms t0, t1, tt;
     long int tps = sysconf(_SC_CLK_TCK);
 
     /* Send packets */
     int loop_count=10;
     double byte_count=0;
-    unsigned long long *seq_num, *seq_data, seq_num_tmp=0;
+    unsigned long long *seq_num, *seq_data;
     seq_num = (unsigned long long *)buf;
+    *seq_num = 0;
     seq_data = seq_num + 1;
     total_data *= 1024.0*1024.0*1024.0; /* change to bytes */
     signal(SIGINT, cc);
+    signal(SIGUSR1, reset_seq_num);
     time0 = times(&t0);
+    time_last = time_last = time0;
     while (run && (byte_count<total_data || total_data<=0)) {
         rv = sendto(sock, buf, (size_t)packet_size, 0, 
                 (struct sockaddr *)&ip_addr, slen);
@@ -163,12 +178,17 @@ int main(int argc, char *argv[]) {
             perror("sendto");
             exit(1);
         }
+        time_cur = times(&tt);
+        if (print_idx) 
+            printf("%20lld (%.3fs)\n", seq_num_tmp,
+                    (double)(time_cur-time_last)/(double)tps);
         seq_num_tmp++;
+        if (seq_reset) { seq_num_tmp=0; seq_reset=0; }
         (*seq_num) = seq_num_tmp;
          if (endian) { byte_swap(seq_num); }
         if (seq_repeat) { *seq_data = *seq_num; }
         byte_count += (double)packet_size;
-        for (i=0; i<1000*wait_cyc; i++) { __asm__("nop;nop;nop"); }
+        for (i=0; i<(int)(1000.0*wait_cyc); i++) { __asm__("nop;nop;nop"); }
     }
     time1 = times(&t1);
 
@@ -179,7 +199,7 @@ int main(int argc, char *argv[]) {
 
 
     if (quiet) {
-        printf("%5d %8.1f %8.3f %5.3f %5d S:%s\n",
+        printf("%5d %8.1f %8.3f %5.3f %5.1f S:%s\n",
                 packet_size, byte_count/(1024.0*1024.0), 
                 rate/(1024.0*1024.0), load, wait_cyc, argv[optind]);
     } else {
