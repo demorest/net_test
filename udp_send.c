@@ -183,6 +183,7 @@ int main(int argc, char *argv[]) {
             printf("%20lld (%.3fs)\n", seq_num_tmp,
                     (double)(time_cur-time_last)/(double)tps);
         seq_num_tmp++;
+        time_last = time_cur;
         if (seq_reset) { seq_num_tmp=0; seq_reset=0; }
         (*seq_num) = seq_num_tmp;
          if (endian) { byte_swap(seq_num); }
