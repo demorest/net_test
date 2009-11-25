@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, cc);
     signal(SIGUSR1, reset_seq_num);
     time0 = times(&t0);
-    time_last = time_last = time0;
+    time_last = time_cur = time0;
     while (run && (byte_count<total_data || total_data<=0)) {
         rv = sendto(sock, buf, (size_t)packet_size, 0, 
                 (struct sockaddr *)&ip_addr, slen);
@@ -206,7 +206,8 @@ int main(int argc, char *argv[]) {
     } else {
         printf("Sending to %s\n", argv[optind]);
         printf("Packet size %d B\n", packet_size);
-        printf("Sent %.1f MB\n", byte_count/(1024.0*1024.0)); 
+        printf("Sent %.1f MB (%lld packets)\n", byte_count/(1024.0*1024.0),
+                seq_num_tmp); 
         printf("Rate %.3f MB/s\n", rate/(1024.0*1024.0));
         printf("Avg load %.3f\n", load);
     }
