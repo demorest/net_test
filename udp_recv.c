@@ -24,6 +24,12 @@
 
 #include "udp_params.h"
 
+// Set to 1 to use recv() and connect() to get data, 
+// otherwise will use recvfrom().  When recvfrom() is
+// in use, UDP packets from any source IP address will be
+// accepted.
+#define USE_RECV 1
+
 void usage() {
     fprintf(stderr,
             "Usage: udp_recv (options) sender_hostname\n"
@@ -37,6 +43,8 @@ void usage() {
             "  -e, --endian                Byte-swap seq num\n"
             "  -w, --wait                  Wait for packet 0\n"
             "  -i n, --incr=n              Seq num increment per packet (1)\n"
+            "  -o n, --offset=n            Byte offset of seq num (0)\n"
+            "  -B n, --bits=n              Num of bits in seq num (64)\n"
             "  -a, --print                 Print packet seq nums\n"
             "  -t nn, --timeout=nn         Receive timeout, ms (1000)\n"
             "  -n nn, --npacket=nn         Stop after n packets\n"
@@ -100,6 +108,8 @@ int main(int argc, char *argv[]) {
         {"quiet",  0, NULL, 'q'},
         {"endian", 0, NULL, 'e'},
         {"incr",   1, NULL, 'i'},
+        {"offset", 1, NULL, 'o'},
+        {"bitst",  1, NULL, 'B'},
         {"print",  0, NULL, 'a'},
         {"timeout",  1, NULL, 't'},
         {"npacket",  1, NULL, 'n'},
@@ -115,8 +125,9 @@ int main(int argc, char *argv[]) {
     int poll_timeout=1000, npacket=0;
     int wait_for_0=0;
     unsigned long long packet_incr=1;
+    unsigned seq_offs=0, seq_bits=64;
     int opt, opti;
-    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ei:at:n:w",long_opts,&opti))!=-1) {
+    while ((opt=getopt_long(argc,argv,"hp:s:qb:d:c:ei:o:B:at:n:w",long_opts,&opti))!=-1) {
         switch (opt) {
             case 'p':
                 port_num = atoi(optarg);
@@ -142,6 +153,12 @@ int main(int argc, char *argv[]) {
                 break;
             case 'i':
                 packet_incr = atoll(optarg);
+                break;
+            case 'o':
+                seq_offs = atol(optarg);
+                break;
+            case 'B':
+                seq_bits = atol(optarg);
                 break;
             case 'a':
                 print_all=1;
@@ -231,11 +248,15 @@ int main(int argc, char *argv[]) {
     }
 
     /* Set up address to recieve from */
-    struct sockaddr_in ip_addr;
+    struct sockaddr_in ip_addr, ip_addr_recv;
     ip_addr.sin_family = AF_INET;
+    ip_addr_recv.sin_family = AF_INET;
     //ip_addr.sin_port = htons(port_num);
     memcpy(&ip_addr.sin_addr, hh->h_addr, sizeof(struct in_addr));
-    //rv = connect(sock, (struct sockaddr *)&ip_addr, sizeof(ip_addr));
+    memcpy(&ip_addr_recv.sin_addr, hh->h_addr, sizeof(struct in_addr));
+#if USE_RECV
+    rv = connect(sock, (struct sockaddr *)&ip_addr, sizeof(ip_addr));
+#endif
     if (rv==-1) { 
         perror("connect");
         exit(1);
@@ -283,10 +304,11 @@ int main(int argc, char *argv[]) {
     while (run) {
         rv = poll(&pfd, 1, poll_timeout);
         if (rv > 0) {
-            //rv = recv(sock, bufptr, packet_size, MSG_TRUNC);
-#if 1 
+#if USE_RECV
+            rv = recv(sock, bufptr, packet_size, MSG_TRUNC);
+#else
             rv = recvfrom(sock, bufptr, packet_size, MSG_TRUNC,
-                    (struct sockaddr *)&ip_addr, &slen);
+                    (struct sockaddr *)&ip_addr_recv, &slen);
 #endif
             if (rv==-1) {
                 if (errno!=EAGAIN) { 
@@ -296,8 +318,11 @@ int main(int argc, char *argv[]) {
             } else {
 
                 /* Get packet number */
-                packet_num = *((unsigned long long *)bufptr);
+                packet_num = *((unsigned long long *)(bufptr+seq_offs));
                 if (endian) byte_swap(&packet_num);
+                if (seq_bits<64) {
+                    packet_num &= (unsigned long long)((1LL<<seq_bits) - 1LL);
+                }
 
                 /* If we're waiting for packet 0, continue */
                 if (wait_for_0) {
@@ -336,9 +361,10 @@ int main(int argc, char *argv[]) {
                 if (print_all)  {
                     int i;
                     for (i=0; i<8; i++) {
-                        printf("%2.2X ", *(unsigned char *)&bufptr[i]);
+                        printf("%2.2X ", *(unsigned char *)&bufptr[i+seq_offs]);
                     }
-                    printf("%20lld (diff=%lld, %.3fs)\n", packet_num,
+                    printf("%20lld %4d (diff=%lld, %.3fs)\n", packet_num,
+                            rv,
                             packet_num-last_packet_num,
                             (double)(time_cur-time_last)/(double)tps);
                 }
